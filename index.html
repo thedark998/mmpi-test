@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MMPI-2 PRO Analyzer - Versione Integrata</title>
+    <style>
+        :root { --p: #007bff; --v: #28a745; --f: #dc3545; --bg: #f8f9fa; --dark: #343a40; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); margin: 0; padding: 10px; display: flex; justify-content: center; touch-action: manipulation; }
+        
+        .box { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); width: 100%; max-width: 900px; box-sizing: border-box; }
+        
+        /* Header & Info */
+        .header-info { display: flex; justify-content: space-between; font-weight: bold; color: #555; font-size: 1rem; margin-bottom: 5px; }
+        .timer-box { color: var(--p); font-family: monospace; font-size: 1.2rem; }
+        
+        /* Progress Bar */
+        .progress-container { height: 10px; background: #eee; border-radius: 5px; margin-bottom: 20px; overflow: hidden; }
+        .progress-bar { height: 100%; background: var(--p); width: 0%; transition: 0.3s; }
+
+        /* Area Domanda */
+        .q-text { font-size: 1.4rem; min-height: 110px; margin: 20px 0; font-weight: 500; color: #222; line-height: 1.5; display: flex; align-items: center; justify-content: center; text-align: center; }
+
+        /* Pulsanti Grandi (Smartphone & PC) */
+        .btns { display: flex; gap: 15px; margin-bottom: 20px; }
+        .btn-ans { flex: 1; padding: 25px; border: 3px solid #ddd; border-radius: 15px; font-size: 1.5rem; font-weight: bold; cursor: pointer; background: white; transition: 0.2s; -webkit-tap-highlight-color: transparent; }
+        .btn-v { color: var(--v); border-color: var(--v); }
+        .btn-v.active { background: var(--v); color: white; }
+        .btn-f { color: var(--f); border-color: var(--f); }
+        .btn-f.active { background: var(--f); color: white; }
+
+        /* Navigazione Secondaria */
+        .nav-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .btn-nav { padding: 15px; border: none; border-radius: 10px; background: #6c757d; color: white; font-weight: bold; cursor: pointer; }
+        .btn-jump { background: #e67e22; }
+
+        /* Dashboard Analisi (Review Screen) */
+        #review-screen { display: none; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: #fff; padding: 15px; border-radius: 12px; border-left: 5px solid var(--p); box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #eee; }
+        .stat-label { font-size: 0.75rem; color: #7f8c8d; text-transform: uppercase; display: block; }
+        .stat-val { font-size: 1.3rem; font-weight: bold; color: var(--dark); }
+
+        .missing-alert { background: #fff3cd; color: #856404; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; font-weight: bold; cursor: pointer; border: 1px solid #ffeeba; }
+
+        .grid-ans { display: grid; grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)); gap: 6px; max-height: 40vh; overflow-y: auto; padding: 10px; background: #f8f9fa; border-radius: 10px; border: 1px solid #eee; }
+        .tile { padding: 12px 0; text-align: center; border-radius: 6px; font-size: 0.85rem; font-weight: bold; color: white; cursor: pointer; }
+        .t-v { background: var(--v); } .t-f { background: var(--f); } .t-n { background: #ccc; color: #666; }
+        .t-crit { outline: 3px solid black; outline-offset: -3px; }
+
+        @media (max-width: 600px) {
+            .q-text { font-size: 1.15rem; }
+            .btn-ans { padding: 20px; font-size: 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="box" id="test-screen">
+    <div class="header-info">
+        <span id="q-count">Domanda 1/567</span>
+        <span class="timer-box" id="timer">00:00:00</span>
+        <span id="perc">0%</span>
+    </div>
+    
+    <div class="progress-container"><div class="progress-bar" id="bar"></div></div>
+
+    <div class="q-text" id="q-body">Caricamento domande...</div>
+
+    <div class="btns">
+        <button class="btn-ans btn-v" id="bv" onclick="handleAns('V')">VERO</button>
+        <button class="btn-ans btn-f" id="bf" onclick="handleAns('F')">FALSO</button>
+    </div>
+
+    <div class="nav-row">
+        <button class="btn-nav" onclick="changeQ(-1)">⬅ Indietro</button>
+        <button class="btn-nav btn-jump" onclick="jumpTo()">VAI A...</button>
+        <button class="btn-nav" onclick="changeQ(1)">Avanti ➡</button>
+    </div>
+
+    <button id="rev-btn" onclick="openReview()" style="width:100%; margin-top:15px; padding:18px; border-radius:12px; border:none; background:var(--dark); color:white; font-weight:bold; display:none; cursor:pointer;">MOSTRA ANALISI RISULTATI</button>
+    <button id="back-recover" onclick="openReview()" style="width:100%; margin-top:10px; padding:15px; border-radius:12px; border:none; background:#6f42c1; color:white; font-weight:bold; display:none;">TORNA ALLA REVISIONE</button>
+</div>
+
+<div class="box" id="review-screen">
+    <h2 style="text-align:center; margin-top:0;">Analisi Profilo Professionale</h2>
+    
+    <div id="missing-box" class="missing-alert" onclick="startRecover()">
+        ⚠️ Hai <span id="missing-count">0</span> domande saltate. Clicca qui per completarle.
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card"><span class="stat-label">Coerenza (VRIN)</span><span class="stat-val" id="st-coh">--</span></div>
+        <div class="stat-card"><span class="stat-label">Sincerità (Scala L)</span><span class="stat-val" id="st-lie">--</span></div>
+        <div class="stat-card"><span class="stat-label">Esitazioni (>7s)</span><span class="stat-val" id="st-time">--</span></div>
+        <div class="stat-card" style="border-left-color:var(--f)"><span class="stat-label">Risposte Critiche</span><span class="stat-val" id="st-crit">--</span></div>
+    </div>
+
+    <div class="grid-ans" id="grid"></div>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:20px;">
+        <button class="btn-nav" onclick="closeReview()">Torna al Test</button>
+        <button class="btn-nav" style="background:var(--v)" onclick="downloadReport()">SCARICA REPORT (.txt)</button>
+    </div>
+</div>
+
+<script>
+    // --- DATABASE DOMANDE ---
+    const questions = ["Mi piacciono le riviste di meccanica", "Ho un buon appetito", "Mi sveglio fresco e riposato quasi tutte le mattine", 
+            "Penso che mi piacerebbe lavorare come bibliotecario", "Vengo facilmente svegliato dai rumori", 
+            "Mio padre è una buona persona, o (se suo padre è morto) mio padre è stato una buona persona", 
+            "Mi piace leggere gli articoli di cronaca nera", "Di solito ho le mani e i piedi abbastanza caldi", 
+            "La mia vita di ogni giorno è piena di cose che mi interessano", "Sono capace di lavorare come lo sono sempre stato", 
+            "Molto spesso mi sembra di avere un nodo alla gola", "Sono soddisfatto della mia vita sessuale", 
+            "Le persone dovrebbero cercare di capire i loro sogni, esserne guidate e trarne consiglio", 
+            "Mi piacciono i racconti di spionaggio o polizieschi", "Lavoro sotto una forte tensione nervosa", 
+            "A volte penso a cose così cattive da non poterne parlare", "Sono sicuro che la vita mi tratta male", 
+            "Soffro di attacchi di nausea e di vomito", "Quando inizio un nuovo lavoro cerco di capire a chi è importante essere simpatici", 
+            "Molto raramente soffro di stitichezza", "A volte ho desiderato molto andare via da casa", "Nessuno sembra capirmi", 
+            "A volte scoppio a ridere o a piangere senza riuscire a controllarmi", "A volte sono posseduto dagli spiriti maligni", 
+            "Mi piacerebbe essere un cantante", "Quando sono nei guai, penso che la cosa migliore sia di non parlarne a nessuno", 
+            "Quando uno mi fa un torto, sento che dovrei fargliela pagare, se possibile, magari solo per principio", 
+            "Ho disturbi di stomaco diverse volte alla settimana", "A volte mi viene voglia di imprecare", "Spesso la notte ho degli incubi", 
+            "Mi riesce difficile concentrarmi su un compito o su un lavoro", "Ho avuto esperienze molto strane e insolite", 
+            "Mi preoccupo raramente della mia salute", "Mai mi sono trovato nei guai a causa del mio comportamento sessuale", 
+            "Qualche volta, da ragazzo, ho rubato delle cose", "Ho quasi sempre la tosse", "A volte mi viene voglia di fracassare qualcosa", 
+            "Ho avuto periodo di giorni, settimane o mesi in cui mi era difficile combinare qualcosa, perché non riuscivo ad incominciare", 
+            "Ho il sonno agitato e disturbato", "Quasi sempre mi sembra che la testa mi faccia male dappertutto", "Non sempre dico la verità", 
+            "Se la gente non ce l'avesse avuta con me, avrei potuto avere molto più successo", "La mia capacità di giudizio è migliore di quanto sia mai stata", 
+            "Una volta la settimana o più spesso, mi sento improvvisamente tutto caldo senza alcuna ragione", 
+            "Sono in buona salute fisica come la maggior parte dei miei amici", 
+            "Se incontro vecchi compagni di scuola o conoscenti che non vedo da molto tempo, preferisco far finta di niente, a meno che non siano loro i primi a parlarmi", 
+            "Non soffro quasi mai di dolori nella regione del cuore o al torace", 
+            "Me ne starei quasi sempre a sognare ad occhi aperti piuttosto che fare qualsiasi altra cosa", "Sono una persona molto socievole", 
+            "Spesso ho dovuto prendere ordini da qualcuno che ne sapeva meno di me", "Non tutti i giorni leggo l'articolo di fondo del giornale", 
+            "Non ho vissuto la vita in maniera giusta", 
+            "Spesso sento bruciori, punture, formicolii in alcune parti del mio corpo, o me le sento come se fossero addormentate", 
+            "Alla mia famiglia non piace il lavoro che ho scelto (o il lavoro che intendo scegliere)", "A volte insisto fino a che gli altri perdono la pazienza con me", 
+            "Vorrei essere felice così come sembrano esserlo gli altri", "Raramente soffro di dolori dietro al collo", 
+            "Penso che moltissime persone esagerino le proprie disgrazie per ottenere la simpatia e l'aiuto degli altri", 
+            "Sono disturbato da pesantezza di stomaco due o tre volte alla settimana, o anche più spesso", 
+            "Quando sono con la gente, sono disturbato dal fatto di udire cose molto strane", "Sono una persona importante", 
+            "Ho spesso desiderato essere una donna, oppure (se Lei è una donna) non mi è mai dispiaciuto essere una donna", 
+            "Non sono ferito facilmente nei miei sentimenti", "Mi piace leggere storie d'amore", "Di solito sono malinconico", 
+            "Sarebbe meglio se quasi tutte le leggi venissero eliminate", "Mi piacciono le poesie", "Talvolta molesto gli animali", 
+            "Penso che mi piacerebbe fare il tipo di lavoro che fa una guardia forestale", "Vengo facilmente vinto nelle discussioni", 
+            "In questo periodo trovo difficile mantenere la speranza di raggiungere qualcosa nella vita", "Qualche volta la mia anima lascia il mio corpo", 
+            "Mi manca proprio la fiducia in me stesso", "Mi piacerebbe essere un fioraio", "Generalmente sento che la vita merita di essere vissuta", 
+            "Bisogna discutere molto con la maggior parte della gente per convincerla della verità", "Ogni tanto rimando a domani quello che dovrei fare oggi", 
+            "Piaccio alla maggior parte delle persone che mi conoscono", "Non me la prendo se vengo preso in giro", 
+            "Mi piacerebbe essere un'infermiera (o un infermiere)", "Penso che la maggior parte delle persone mentirebbe per farsi strada nella vita", 
+            "Faccio molte cose di cui dopo mi pento (più di quanto sembra lo facciano gli altri)", "Ho pochissimi litigi con i miei familiari", 
+            "Sono stato sospeso da scuola una o più volte per cattiva condotta", "A volte provo un forte impulso a fare qualcosa di dannoso o sconveniente", 
+            "Mi piace andare a feste e trattenimenti dove c'è molto chiasso e divertimento", 
+            "Mi sono imbattuto in problemi che si potevano risolvere in così tanti modi da non riuscire a prendere una decisione", 
+            "Credo che le donne dovrebbero avere la stessa libertà sessuale degli uomini", "Le più dure battaglie sono quelle che combatto con me stesso", 
+            "Voglio bene a mio padre, o (se Suo padre è morto) ho voluto bene a mio padre", "Soffro poco o niente di spasmi o tremori muscolari", 
+            "Non mi sembra di preoccuparmi per quello che mi succede", "A volte quando non mi sento bene sono irritabile", 
+            "Molto spesso mi sembra di avere fatto qualcosa di sbagliato o di cattivo", "Sono casi sempre contento", 
+            "Vedo intorno a me cose, animali o persone che gli altri non vedono", "Mi sembra quasi sempre di avere come un senso di pesantezza alla testa o al naso", 
+            "Certe persone sono così prepotenti ed autoritarie che mi sento di fare il contrario di quanto richiedono, anche se so che hanno ragione", 
+            "Qualcuno ce l'ha con me", "Mai ho fatto qualcosa di pericoloso per il gusto di farlo", "Spesso sento come se avessi un cerchio stretto attorno alla testa", 
+            "A volte mi arrabbio", "Mi diverto di più ad una gara o ad una partita quando ci scommetto sopra", 
+            "La maggior parte della gente è onesta soprattutto per paura di essere scoperta", "A scuola, talvolta, sono stato mandato dal preside per cattiva condotta", 
+            "Il mio modo di parlare è lo stesso di sempre (né più veloce, né più lento, né male articolato, né più rauco)", 
+            "A casa, non mi comporto così bene a tavola, come quando mangio fuori in compagnia", 
+            "Chiunque sia capace e abbia voglia di lavorare sodo ha buone possibilità di successo", 
+            "Mi sembra di essere capace e sveglio quanto la maggior parte delle persone che mi circondano", 
+            "La maggior parte delle persone userebbe mezzi sleali per avere un profitto o un vantaggio piuttosto che perderlo", 
+            "Ho molti disturbi di stomaco", "Mi piace il teatro", "So chi è responsabile della maggior parte dei miei guai", 
+            "Qualche volta sono così fortemente attratto da oggetti personali di altri (come scarpe, guanti, ecc.) da aver voglia di toccarli o rubarli, anche se non so cosa farne", 
+            "La vista del sangue non mi fa impressione né mi fa star male", "Spesso non riesco a capire perché sono così irritabile e di cattivo umore", 
+            "Mai ho vomitato o sputato sangue tossendo", "Non mi preoccupo di prendere malattie", "Mi piace raccogliere fiori o coltivare piante in casa", 
+            "Spesso trovo necessario prendere posizione per sostenere ciò che ritengo giusto", "Mai ho compiuto pratiche sessuali insolite", 
+            "A volte i miei pensieri si susseguono così rapidamente che non riesco ad esprimerli", 
+            "Se potessi entrare in un cinema senza pagare, con la certezza di non essere scoperto, probabilmente lo farei", 
+            "Di solito mi domando quale ragione nascosta può avere una persona per farmi una gentilezza", 
+            "Credo che la mia vita familiare sia piacevole come quella della maggior parte dei miei conoscenti", "Credo che bisogna far rispettare rigorosamente la legge", 
+            "Le critiche o i rimproveri mi feriscono moltissimo", "Mi piace cucinare", 
+            "La mia condotta personale è molto condizionata dal comportamento di coloro che mi circondano", "A volte mi sento proprio inutile", 
+            "Quando ero bambino facevo parte di un gruppo di amici in cui si cercava di rimanere uniti di fronte a qualsiasi tipo di avversità", 
+            "Credo nella vita eterna", "Mi piacerebbe essere un soldato", "A volte vorrei attaccar briga e fare a pugni con qualcuno", 
+            "Spobjecto ho perduto delle occasioni perché non riuscivo a decidermi abbastanza rapidamente", 
+            "Mi spazientisco se qualcuno mi interrompe, per chiedermi consigli o per altri motivi, quando sto facendo qualcosa di importante", 
+            "Avevo l'abitudine di tenere un diario", "Credo che si stia complottando contro di me", "Preferisco vincere piuttosto che perdere in un gioco", 
+            "La maggior parte delle notti mi addormento senza che pensieri o idee particolari mi disturbino", "Durante gli ultimi anni sono stato bene per la maggior parte del tempo", 
+            "Mai ho avuto attacchi improvvisi o convulsioni", "Non sto né aumentando né diminuendo di peso", "Credo di essere pedinato", 
+            "Sento di essere stato spesso punito senza ragione", "Piango facilmente", "Mi riesce difficile capire bene come una volta quello che leggo", 
+            "Mai mi sono sentito bene come adesso nella mia vita", "Qualche volta la sommità della mia testa è molto sensibile", 
+            "A volte mi sento come se dovessi fare del male a me stesso o a qualcun altro", 
+            "Mi offendo se qualcuno mi inganna così abilmente che devo ammettere di essere stato preso in giro", "Non mi stanco facilmente", 
+            "Mi piace conoscere persone importanti perché mi fa sentire importante", "Ho paura quando guardo giù da un luogo altro", 
+            "Non sarei preoccupato se qualcuno dei miei familiari si trovasse nei guai con la legge", "Mai sono felice a meno che non sia in giro o in viaggio", 
+            "Non mi preoccupa ciò che gli altri pensano di me", "Mi fa sentire a disagio mettermi in mostra ad una festa, anche se gli altri lo fanno", 
+            "Mai sono svenuto", "Mi piaceva andare a scuola", "Devo lottare frequentemente per non mostrare la mia timidezza", "Qualcuno ha cercato di avvelenarmi", 
+            "I serpenti mi fanno poca o nessuna impressione", "Raramente o mai ho sofferto di vertigini", "La mia memoria sembra buona", "Il sesso mi preoccupa", 
+            "Mi riesce difficile attaccare discorso con persone che ho appena conosciuto", 
+            "Ho avuto periodi in cui mi occupavo di attività senza poi ricordarmi ciò che avevo fatto", "Quando mi annoio mi piace trovare qualcosa di eccitante da fare", 
+            "Ho paura di impazzire", "Sono contrario a fare l'elemosina ai mendicanti", "Spesso mi accorgo che le mani mi tremano quando provo a fare qualcosa", 
+            "Posso leggere a lungo senza stancarmi gli occhi", "Mi piace studiare e leggere argomenti riguardanti il mio lavoro", "Molto spesso mi sento fiacco", 
+            "Poche volte ho mal di testa", "Le mie mani non sono diventate pesanti o impacciate nei movimenti", 
+            "Talvolta quando sono imbarazzato, comincio a sudare e ciò mi dà molto fastidio", "Non ho difficoltà nel mantenere l'equilibrio mentre cammino", 
+            "C'è qualcosa che non va nella mia mente", "Non soffro di attacchi di febbre da fieno o di asma", 
+            "Ho avuto crisi in cui non potevo controllare i miei movimenti o la parola, ma capivo quello che succedeva intorno a me", 
+            "Non mi piace ogni persona che conosco", "Sogno ad occhi aperti molto di rado", "Vorrei non essere così timido", "Non mi disturba maneggiare il denaro", 
+            "Se fossi un giornalista mi piacerebbe scrivere cronache teatrali", "Mi piacciono diversi tipi di gioco e svago", "Mi piace flirtare, amoreggiare", 
+            "I miei familiari mi trattano più da bambino che da adulto", "Mi piacerebbe fare il giornalista", 
+            "Mia madre è una buona persona, o (se Sua madre è morta) è stata una buona persona", "Quando cammino sto molto attento a non calpestare le fessure sul marciapiede", 
+            "Mai ho avuto sfoghi della pelle che mi abbiano preoccupato", "C'è pochissimo affetto e solidarietà nella mia famiglia, in confronto alle altre famiglie", 
+            "Sono spesso preoccupato per qualcosa", "Penso che mi piacerebbe lavorare come costruttore edile", "Spesso sento voci senza sapere da dove provengono", 
+            "Mi piace la scienza", "Non mi è difficile chiedere aiuto ai miei amici anche se non posso contraccambiarli", "Mi piace molto andare a caccia", 
+            "I miei genitori spesso si opponevano al tipo di gente che frequentavo", "Qualche volta faccio dei pettegolezzi", 
+            "Il mio udito mi sembra buono come quello della maggior parte della gente", "Qualcuno della mia famiglia ha abitudini che mi irritano moltissimo", 
+            "A volte sento di poter prendere decisioni con un'insolita facilità", "Mi piacerebbe far parte di molti club, circoli o associazioni", 
+            "Raramente (o mai) mi sento battere forte il cuore o mancare il respiro", "Mi piace parlare di sesso", "Mi piace visitare luoghi dove non sono mai stato prima", 
+            "Mi sono ispirato ad un programma di vita basato sul dovere e l'ho seguito scrupolosamente", 
+            "Talvolta ho ostacolato persone che tentavano di fare qualcosa non perché me ne importasse molto, ma per una questione di principio", 
+            "Mi arrabbio facilmente e poi mi passa presto", "Sono stato del tutto indipendente e libero dal controllo familiare", "Passo molto tempo a rimuginare", 
+            "Qualcuno ha cercato di derubarmi", "I miei parenti hanno quasi tutti simpatia per me", "Ho periodi di tale irrequietezza da non poter stare a lungo seduto", 
+            "Ho avuto delle delusioni amorose", "Mai mi preoccupo del mio aspetto", "Spesso sogno cose che è meglio che tenga per me", 
+            "Ai bambini si dovrebbero insegnare le cose più importanti in materia sessuale", "Non credo di essere più nervoso degli altri", 
+            "Raramente, o mai, ho dolori fisici", "Il mio modo di agire si presenta ad essere frainteso dagli altri", 
+            "A volte, senza nessuna ragione o perfino quando le cose mi vanno male, mi sento così eccitato e felice da 'toccare il cielo con un dito'", 
+            "Non critico le persone che cercano di impadronirsi di tutto quello che possono prendere in questo mondo", 
+            "Ci sono persone che tentano di rubarmi i pensieri e le idee", 
+            "Ho avuto dei momenti di vuoto, in cui le mie attività venivano interrotte e non capivo che cosa succedeva intorno a me", 
+            "Posso essere amico di persone che fanno cose che io ritengo sbagliate", "Mi piace far parte di un gruppo di persone che si fanno scherzi tra di loro", 
+            "Qualche volta alle elezioni voto per gente di cui so molto poco", "Trovo difficoltà nel cominciare a fare le cose", "Credo di essere perseguitato dal destino", 
+            "A scuola imparavo lentamente", "Se fossi un pittore mi piacerebbe disegnare fiori", "Non mi preoccupa il fatto di non avere un aspetto migliore", 
+            "Sudo molto facilmente anche nelle giornate fresche", "Ho piena fiducia in me stesso", 
+            "A volte è stato per me impossibile trattenermi dal rubare o portar via qualcosa in un negozio", "E' meglio non fidarsi di nessuno", 
+            "Almeno una volta alla settimana, o più spesso, divento molto eccitato", "In compagnia mi riesce difficile trovare argomenti di conversazione adatti alle circostanze", 
+            "Qualcosa di emozionante o di eccitante mi solleva quasi sempre il morale quando sono triste", 
+            "Quando esco di casa non sono preso dal dubbio di aver lasciato porta o finestra aperte", "Credo che i miei peccati siano imperdonabili", 
+            "Una o più zone della mia pelle sono insensibili", "Non biasimo una persona che si approfitta degli altri se questi la lasciano fare", 
+            "Ho la vista ancora buona come nel passato", "A volte sono rimasto così colpito dall'abilità di qualche criminale, che ho sperato che gli andasse bene", 
+            "Spesso mi è sembrato che sconosciuti mi osservassero con occhio critico", "Ogni cosa ha per me lo stesso sapore", "Ogni giorno bevo un enorme quantità di acqua", 
+            "La maggior parte delle persone si fa degli amici perché possono risultare utili", "Raramente mi capita di sentire ronzii o rumore nelle orecchie", 
+            "Talvolta mi capita di odiare qualcuno della mia famiglia al quale di solito voglio bene", "Se fossi un giornalista mi piacerebbe molto fare il cronista sportivo", 
+            "Posso dormire durante il giorno ma non di notte", "Sono sicuro che si fanno chiacchiere su di me", "Qualche volta le barzellette sporche mi divertono", 
+            "Sono molto meno pauroso dei miei amici", 
+            "In un gruppo di persone non mi sentirei imbarazzato se fossi sollecitato ad iniziare una discussione o esprimere un'opinione su un argomento che conosco bene", 
+            "Sono sempre disgustato dalla legge quando un criminale viene assolto grazie all'abilità di un avvocato", "Ho fatto uso eccessivo di bevande alcoliche", 
+            "Di solito evito di parlare per primo agli altri", "Mai ho avuto guai con la legge", "Ho dei periodi in cui mi sento insolitamente allegro senza particolari motivi", 
+            "Vorrei non essere infastidito da pensieri relativi al sesso", 
+            "Se parecchie persone si trovano nei pasticci, la miglior cosa che possano fare è di mettersi d'accordo su una versione dei fatti e mantenerla in ogni caso", 
+            "Non mi disturba in modo particolare vedere soffrire gli animali", "Credo di provare sentimenti più intensi della maggior parte della gente", 
+            "In nessun periodo della mia vita mi è piaciuto giocare con le bambole", "La vita è quasi sempre una fatica per me", 
+            "Sono così sensibile riguardo a certi argomenti da non poterne parlare", "A scuola mi era molto difficile parlare davanti alla classe", 
+            "Voglio bene a mia madre, o (se Sua madre è morta) volevo bene a mia madre", "Mi sento spesso solo, anche quando sono in mezzo alla gente", 
+            "Ottengo dagli altri tutta la simpatia che merito", "Mi rifiuto di partecipare ad alcuni giochi perché non ci riesco bene", 
+            "Mi sembra di fare amicizia rapidamente come gli altri", "Mi dà fastidio avere gente intorno", "Mi è stato detto che cammino durante il sonno", 
+            "Chi tenta gli altri lasciando incustodite cose di valore è da biasimare quasi quanto chi le ruba", "Penso che chiunque direbbe una bugia per tirarsi fuori dai guai", 
+            "Sono più sensibile della maggior parte delle altre persone", "La maggior parte della gente, in fondo, si scomoda malvolentieri per aiutare il prossimo", 
+            "Molti dei miei sogni riguardano il sesso", "I miei genitori e i miei familiari trovano in me più difetti di quanto dovrebbero", "Mi imbarazzo facilmente", 
+            "Sono preoccupato per questioni d'affari o di denaro", "Mai sono stato innamorato di qualcuno", "Qualcuno della mia famiglia ha fatto cose che mi hanno spaventato", 
+            "Non sogno quasi mai", "Spesso sul collo mi vengono delle macchie rosse", "Mai ho avuto paralisi o insolita debolezza in qualche muscolo", 
+            "A volte perdo o cambio la voce anche se non ho il raffreddore", "Mia madre o mio padre mi hanno spesso costretto ad obbedire anche quando pensavo che fosse irragionevole", 
+            "A volte sento strani odori", "Mi è impossibile mantenere l'attenzione su una data cosa", "Ho delle buone ragioni per essere geloso di uno o più dei miei familiari", 
+            "Quasi sempre sto in ansia per qualcuno o per qualcosa", "Perdo facilmente la pazienza con le persone", "Quasi sempre vorrei essere morto", 
+            "A volte sono così eccitato che mi riesce difficile addormentarmi", "Ho avuto certamente più motivi di preoccupazione di quanti me ne spettassero", 
+            "A nessuno importa molto di ciò che accade al prossimo", "A volte il mio udito è così sensibile che mi dà fastidio", "Dimentico subito quello che gli altri mi dicono", 
+            "Di solito mi devo fermare a pensarci sopra prima di fare qualcosa, anche se di poca importanza", "Spesso attraverso la strada per evitare di incontrare qualcuno che ho visto", 
+            "Spesso ho la sensazione come se le cose fossero irreali", "La sola parte interessante dei giornali è quella umoristica", 
+            "Ho l'abitudine di contare oggetti di nessuna importanza, come le lampadine delle insegne luminose e così via", "Non ho nemici che vogliano veramente farmi del male", 
+            "In genere diffido delle persone che si dimostrano più amichevoli di quanto mi sarei aspettato", "Ho pensieri strani ed insoliti", 
+            "Divento ansioso e turbato quando devo allontanarmi da casa per un breve viaggio", "Di solito mi aspetto di riuscire in quello che faccio", 
+            "Odo strane cose quando sono solo", "Sono stato spaventato da persone o cose, pur sapendo che non mi potevano fare del male", 
+            "Non mi preoccupa entrare da solo in una stanza dove ci sono già delle persone che stanno conversando", 
+            "Ho paura di usare coltelli o altri oggetti molto taglienti o appuntiti", "Qualche volta provo piacere a far del male alle persone cui voglio bene", 
+            "Riesco facilmente a intimorire gli altri e qualche volta lo faccio per il gusto di farlo", "Ho più difficoltà degli altri a concentrarmi", 
+            "Parecchie volte ho rinunciato a fare qualcosa perché credevo di non esserne capace", 
+            "Mi vengono in mente parole cattive o perfino terribili e non riesco a liberarmene", 
+            "A volte pensieri di poca o nessuna importanza si fissano nella mia mente e mi disturbano per giorni interi", "Quasi ogni giorno capita qualcosa che mi spaventa", 
+            "A volte mi sento pieno di energie", "Ho la tendenza a vedere le cose più difficili di quello che sono", 
+            "A volte ho provato piacere se qualcuno cui volevo bene mi faceva del male", "La gente dice cose offensive e volgari sul mio conto", 
+            "Mi sento a disagio nei luoghi chiusi", "Non mi preoccupo particolarmente di come sono o di come sembro", "Qualcuno controlla la mia mente", 
+            "Alle feste di solito resto in disparte, solo o tutt'al più con un'altra persona, piuttosto che mischiarmi alla gente", "La gente spesso mi delude", 
+            "Qualche volta mi è sembrato che le difficoltà si accumulassero talmente da non poterle superare", "Mi piace andare a ballare", 
+            "In certi periodi la mia mente sembra lavorare più lentamente del solito", "In treno, in autobus, ecc. parlo spesso con estranei", "Mi piacciono i bambini", 
+            "Mi piace giocare d'azzardo puntando piccole somme", "Se si presentasse l'occasione potrei fare cose molto vantaggiose per l'umanità", 
+            "Ho spesso incontrato persone ritenute particolarmente competenti, mentre in realtà non lo erano più di me", 
+            "Mi sento come fallito quando vengo a sapere che qualcuno, che conosco molto bene, ha avuto successo", "Spesso penso: 'vorrei tornare ad essere bambino'", 
+            "Non sono mai così felice come quando sono solo", "Se si presentasse l'occasione potrei essere un buon capo", "Le barzellette sporche mi imbarazzano", 
+            "Generalmente la gente esige più rispetto per i propri diritti di quanto sia disposta a concederne", 
+            "Mi piacciono gli intrattenimenti e le feste proprio per stare in mezzo alla gente", "Cerco di ricordarmi le barzellette per poterle raccontare ad altri", 
+            "Una o più volte nella mia vita ho avuto l'impressione che qualcuno mi costringesse, ipnotizzandomi, a compiere determinate azioni", 
+            "Mi riesce difficile interrompere, anche per breve tempo, un lavoro iniziato", 
+            "Molto spesso mi tengo fuori dai pettegolezzi e dalle chiacchiere del gruppo a cui appartengo", 
+            "Ho trovato spesso delle persone invidiose delle mie buone idee, solo perché non ci avevano pensato prima", "Mi piace l'animazione della folla", 
+            "Non mi preoccupa incontrare estranei", "Qualcuno ha cercato di influenzare la mia mente", "Ricordo di aver fatto finta di essere ammalato per evitare qualche impegno", 
+            "Le mie preoccupazioni sembrano svanire quando mi trovo in un gruppo di amici pieni di vita", "Mi vien voglia di rinunciare subito a quello che sto facendo quando le cose vanno male", 
+            "Mi piace che la gente sappia come la penso", "Ho avuto periodi in cui mi sentivo così pieno di energia che per alcuni giorni non avevo bisogno di dormire", 
+            "Ogni volta che è possibile evito di stare in mezzo alla folla", "Tendo a tirarmi indietro di fronte a situazioni critiche o difficili", 
+            "Di solito rinuncio ad eseguire un progetto se gli altri pensano che non ne valga la pena", "Mi piacciono le feste e i trattenimenti", 
+            "Ho spesso desiderato di essere di sesso opposto al mio", "Non mi arrabbio facilmente", "Nel passato ho compiuto delle azioni cattive di cui non ho parlato a nessuno", 
+            "La maggior parte delle persone ricorrerebbe a mezzi illeciti per farsi strada nella vita", "Divento nervoso se le persone mi fanno domande personali", 
+            "Non mi sento di fare progetti per il futuro", "Non sono contento di me stesso, così come sono", 
+            "Mi arrabbio quando i miei amici o i miei familiari mi danno consigli su come dovrei vivere la mia vita", "Sono stato picchiato spesso quando ero bambino", 
+            "Provo fastidio quando le persone parlano bene di me", "Non mi piace sentire gli altri che esprimono la loro opinione sulla vita", 
+            "Sono spesso in serio disaccordo con le persone che mi sono affettivamente vicine", "Quando le cose vanno realmente male, so che posso contare sull'aiuto della mia famiglia", 
+            "Mi piaceva fare il gioco della 'famiglia', quando ero bambino", "Non ho paura del fuoco", 
+            "A volte mi sono tenuto lontano da una persona, perché temevo di fare o dire cose di cui dopo mi sarei potuto pentire", 
+            "Riesco ad esprimere i miei veri sentimenti solo quando bevo", "Molto raramente ho momenti di malinconia o tristezza", 
+            "Mi viene spesso detto che sono una testa calda", "Vorrei smettere di preoccuparmi per cose che ho detto e che possono aver ferito i sentimenti di qualcuno", 
+            "Mi sento incapace di dire tutto di me a chiunque", "I fulmini sono una delle mie paure", "Mi piace lasciare la gente all'oscuro di quello che sto per fare", 
+            "Spobjecto i miei progetti mi sono sembrati così pieni di difficoltà da dovervi rinunciare", "Ho paura di stare solo al buio", 
+            "Spesso sono rimasto male per essere stato frainteso, quando ho cercato di evitare che qualcuno sbagliasse", "Le bufere mi terrorizzano", 
+            "Spesso chiedo consiglio agli altri", "Il futuro è troppo incerto perché una persona possa fare seri progetti per l'avvenire", 
+            "Spesso, anche se tutto mi va bene, sento che non mi importa di niente", "Non ho paura dell'acqua", "Spesso, prima di decidere qualcosa, devo dormirci sopra", 
+            "Spesso la gente ha frainteso le mie intenzioni quando tentavo di correggerla e aiutarla", "Non ho difficoltà ad inghiottire", 
+            "Di solito sono calmo e non mi agito facilmente", "Mi piacerebbe proprio battere un imbroglione con i suoi stessi mezzi", 
+            "Merito severe punizioni per i miei peccati", "Le delusioni mi colpiscono così intensamente da non potermele togliere dalla mente", 
+            "Mi dà fastidio se qualcuno mi osserva mentre sto facendo un lavoro, anche se so di poterlo fare bene", 
+            "Spesso sono così seccato quando qualcuno tenta di passarmi avanti in una coda, che glielo dico apertamente", "Talvolta penso di essere un buono a nulla", 
+            "Da ragazzo spesso non andavo a scuola anche quando ci sarei dovuto andare", "Uno o più dei miei familiari sono molto nervosi", 
+            "A volte ho dovuto trattare male persone sgarbate o fastidiose", "Mi preoccupo abbastanza per le disgrazie che potrebbero capitare", 
+            "Ho delle convinzioni politiche ben radicate", "Mi piacerebbe fare il pilota di auto da corsa", "E' giusto aggirare la legge, purché non la si violi effettivamente", 
+            "Alcune persone mi sono così antipatiche che dentro di me provo piacere quando vengono punite per qualcosa che hanno fatto", 
+            "Dover aspettare mi rende nervoso", "Mi può capitare di rinunciare a fare qualcosa, se gli altri mi dicono che la sto facendo male", 
+            "Quando ero giovane ero pieno di entusiasmo", "Sono solito mettercela tutta pur di averla vinta con chi mi contrasta", 
+            "Mi dà fastidio la gente che mi osserva quando mi trovo fuori, per strada, nei negozi, ecc.", 
+            "L’uomo che si è maggiormente occupato di me quando ero bambino (padre, patrigno, ecc.) era molto severo con me", 
+            "Mi piaceva giocare a 'campana' e saltare alla corda", "Mai ho avuto visioni", "Ho cambiato parere diverse volte su quale lavoro fare nella vita", 
+            "Evito sempre di prendere medicine o sonniferi senza la prescrizione del medico", "Spesso mi dispiace di essere così irritabile e di cattivo umore", 
+            "A scuola i miei voti in condotta usualmente erano brutti", "Mi sento particolarmente attratto dal fuoco", 
+            "Quando sono messo alle strette dico quella parte di verità che probabilmente non mi danneggia", 
+            "Se mi trovassi nei guai con degli amici e fossimo tutti ugualmente colpevoli, preferirei prendere io tutta la colpa, piuttosto che tradirli", 
+            "Spesso ho paura del buio", "Quando l’uomo è con una donna generalmente pensa a lei da un punto di vista sessuale", 
+            "Di solito parlo molto chiaramente a quelli che sto cercando di correggere o migliorare", "Sono molto preoccupato dall’idea di un terremoto", 
+            "Mi entusiasmo completamente per una buona idea", "Di solito cerco di arrangiarmi da solo piuttosto che chiedere a qualcuno di mostrarmi come si fa", 
+            "Mi fa paura trovarmi in uno stanzino o in un altro luogo chiuso e stretto", 
+            "Devo ammettere che talvolta mi sono preoccupato eccessivamente per cose che in realtà non erano importanti", 
+            "Non cerco di nascondere la scarsa considerazione o la commiserazione che provo per la gente, per evitare che si renda conto dei miei sentimenti", 
+            "Sono una persona molto nervosa", 
+            "Ho spesso lavorato con dei superiori che si prendevano il merito di un buon lavoro e invece addossavano ai loro dipendenti la responsabilità degli errori", 
+            "Qualche volta mi è difficile far valere i miei diritti perché sono molto riservato", "Ho paura o disgusto dello sporco", 
+            "Ho un mio mondo di fantasie di cui non parlo a nessuno", "Qualcuno della mia famiglia ha un carattere irascibile", "Sono incapace di fare qualcosa di buono", 
+            "Spesso mi sento in colpa perché fingo di essere più dispiaciuto per qualcosa di quanto lo sia veramente", "Di solito difendo con forza le mie opinioni", 
+            "Non ho paura dei ragni", "Il futuro mi sembra senza speranza", "I miei familiari e i miei parenti stretti vanno molto d’accordo", 
+            "Mi piacerebbe portare vestiti costosi", "La gente può farmi cambiare opinione facilmente, anche quando ho già preso una decisione", 
+            "Certi animali mi innervosiscono", "Sono capace di sopportare il dolore quanto gli altri", 
+            "Diverse volte sono stato l’ultimo a darmi per vinto nel cercare di fare qualcosa", "Mi arrabbio quando qualcuno mi mette fretta", 
+            "Non ho paura dei topi", "Parecchie volte alla settimana sento come se stesse per accadere qualcosa di spaventoso", "Assai spesso mi sento stanco", 
+            "Mi piace riparare le serrature", "Qualche volta sono sicuro che gli altri sanno quello che sto pensando", "Mi piacciono le letture di tipo scientifico", 
+            "Ho paura di stare da solo in luoghi vasti e aperti", "A volte mi sento come se stessi per andare in pezzi", "Molte persone sono colpevoli di cattiva condotta sessuale", 
+            "Mi sono spesso spaventato nel cuore della notte", "Sono molto preoccupato perché dimentico dove metto le cose", 
+            "Quando ero bambino, la persona alla quale ero più attaccato e che ammiravo di più era una donna (madre, sorella, zia, nonna, o altra donna)", 
+            "Mi piacciono di più i racconti di avventura che le storie d’amore", "Spesso divento confuso e mi dimentico quello che voglio dire", 
+            "Sono molto goffo e maldestro", "Mi piace molto praticare sport violenti (come per esempio il rugby)", "Odio tutta la mia famiglia", 
+            "Certe persone pensano che sia difficile riuscire a conoscermi", "Passo la maggior parte del mio tempo libero da solo", 
+            "Quando la gente fa qualcosa che mi fa arrabbiare, faccio in modo che lo sappia", "Di solito ho molta difficoltà a decidere che cosa fare", 
+            "La gente non mi trova attraente", "Le persone non sono molto gentili con me", "Spesso sento di non essere buono come gli altri", "Sono molto ostinato", 
+            "Mi è piaciuto fumare marijuana", "La malattia mentale è un segno di debolezza", "Ho un problema di droga o di alcool", 
+            "Fantasmi o spiriti possono influenzare le persone sia nel bene che nel male", "Mi sento perso quando devo prendere qualche decisione importante", 
+            "Cerco sempre di essere gradevole anche quando gli altri sono arrabbiati o polemici", "Quando ho un problema mi è di aiuto parlarne con qualcuno", 
+            "Gli obiettivi principali che mi sono posto nella vita sono alla mia portata", "Credo che la gente dovrebbe tenere per sé i propri problemi", 
+            "Non mi sento sotto pressione o stress in questi giorni", "Mi dà molto fastidio pensare di fare dei cambiamenti nella mia vita", 
+            "I miei maggiori problemi sono causati dal comportamento di qualcuno che mi è molto vicino", "Detesto andare dai medici anche quando sono malato", 
+            "Sebbene non sia felice della vita che conduco, non c’è niente che io possa fare", 
+            "Parlare dei problemi e delle preoccupazioni con qualcuno è spesso più utile che prendere medicine", "Ho delle abitudini che sono veramente dannose", 
+            "Quando è necessario risolvere dei problemi, in genere lascio che se ne occupino gli altri", "Riconosco di avere dei difetti che non riuscirò a correggere", 
+            "Non ne posso più di quello che devo fare tutti i giorni e vorrei soltanto lasciar perdere tutto", "Recentemente ho pensato di suicidarmi", 
+            "Generalmente mi irrito molto quando la gente interrompe il mio lavoro", "Spesso sento di poter leggere nella mente degli altri", 
+            "Dover prendere decisioni importanti mi rende nervoso", "Mi dicono che mangio troppo velocemente", 
+            "Una volta alla settimana, o più spesso, sono alticcio, fatto o ubriaco", "Nella mia vita ho avuto una perdita tragica e so che non riuscirò mai a superarla", 
+            "A volte mi arrabbio talmente da non capire più cosa mi sta succedendo", "Quando le persone mi chiedono qualcosa mi è difficile dire di no", 
+            "Mai sono così felice come quando sono solo", "La mia vita è vuota e senza significato", "Mi è difficile mantenere un lavoro", 
+            "Ho fatto un sacco di grossi errori nella mia vita", "Mi arrabbio con me stesso perché sono così arrendevole con gli altri", 
+            "Ultimamente ho pensato molto al suicidio", "Mi piace prendere decisioni e assegnare dei compiti ad altri", 
+            "Anche senza la mia famiglia so che ci sarà sempre qualcuno che si prenderà cura di me", 
+            "Detesto fare la coda al cinema, al ristorante o per un avvenimento sportivo", "Nessuno lo sa, ma ho tentato di uccidermi", 
+            "Tutto sta andando troppo velocemente intorno a me", "So di essere un peso per gli altri", 
+            "Dopo una brutta giornata di solito ho bisogno di bere qualche bicchierino per rilassarmi", "Gran parte delle difficoltà che ho sono dovute alla sfortuna", 
+            "A volte mi sembra di non poter smettere di parlare", "A volte mi taglio o mi procuro delle ferite volutamente, senza sapere perché", 
+            "Mi impegno molte ore anche se il mio lavoro non lo richiede", "In genere mi sento meglio dopo un bel pianto", "Dimentico dove lascio le cose", 
+            "Se potessi vivere di nuovo la mia vita, non la cambierei molto", 
+            "Mi irrito molto quando le persone su cui faccio affidamento non svolgono in tempo il loro lavoro", "Se mi arrabbio sono sicuro che mi verrà mal di testa", 
+            "Mi piace condurre una trattativa difficile", "La maggior parte degli uomini è infedele alla propria moglie di quando in quando", 
+            "Ultimamente ho perso la voglia di risolvere i miei problemi", "Quando ero ubriaco, mi è capitato di arrabbiarmi e rompere mobili o piatti", 
+            "Lavoro meglio quando ho una scadenza precisa", "Mi sono talmente arrabbiato con qualcuno che mi sono sentito come se stessi per esplodere", 
+            "A volte mi vengono in mente pensieri terribili sulla mia famiglia", "La gente mi dice che ho dei problemi con l’alcool, ma io non sono d’accordo", 
+            "Ho sempre troppo poco tempo per portare a termine ciò che devo fare", 
+            "In questo periodo i miei pensieri sono rivolti sempre più spesso alla morte e alla vita dopo la morte", 
+            "Spesso raccolgo e conservo oggetti che probabilmente non userò mai", 
+            "A volte mi sono arrabbiato così tanto che mi sono picchiato con qualcuno, facendogli del male", "Ultimamente mi sento giudicato per ogni cosa che faccio", 
+            "Attualmente ho poco a che fare con i miei parenti", "A volte mi sembra di sentire pronunciare a voce alta i miei pensieri", 
+            "Quando sono triste la compagnia degli amici può sempre tirarmi su il morale", "Molto di ciò che mi sta succedendo ora sembra essermi già capitato prima", 
+            "Quando la vita diventa difficile, mi viene voglia di darmi per vinto", "Non posso entrare da solo in una stanza buia anche se sono a casa mia", 
+            "I soldi mi preoccupano molto", "L’uomo dovrebbe essere il capo della famiglia", "L’unico posto in cui mi sento rilassato è casa mia", 
+            "Le persone con cui lavoro non comprendono i miei problemi", "Sono soddisfatto di quanto guadagno", "Di solito ho abbastanza energia per fare il mio lavoro", 
+            "E’ difficile per me accettare complimenti", "Nella maggior parte dei matrimoni uno o entrambi i coniugi sono infelici", 
+            "Quasi mai perdo il controllo di me stesso", "In questo periodo devo fare un grande sforzo per ricordare che cosa mi dice la gente", 
+            "Quando sono triste o malinconico il mio lavoro ne risente", "Nella maggior parte delle coppie, i coniugi non mostrano grande affetto l’uno verso l’altro"];
+
+    // --- LOGICA ANALISI ---
+    const vrinPairs = [[2, 38, true], [4, 30, true], [10, 14, false]]; 
+    const lieItems = [40, 50, 120, 250]; 
+    const critItems = [23, 31, 59, 115, 220]; 
+
+    let responses = JSON.parse(localStorage.getItem('mmpi_p8_res')) || new Array(567).fill(null);
+    let reactionTimes = JSON.parse(localStorage.getItem('mmpi_p8_times')) || new Array(567).fill(0);
+    let totalSeconds = parseInt(localStorage.getItem('mmpi_p8_sec')) || 0;
+    
+    let currentIdx = 0;
+    let startTime = Date.now();
+    let isReviewing = false;
+    let isRecovering = false;
+    let missingQueue = [];
+
+    // Timer Globale
+    setInterval(() => {
+        if(!isReviewing) {
+            totalSeconds++;
+            updateTimerDisplay();
+            localStorage.setItem('mmpi_p8_sec', totalSeconds);
+        }
+    }, 1000);
+
+    function updateTimerDisplay() {
+        let h = Math.floor(totalSeconds / 3600);
+        let m = Math.floor((totalSeconds % 3600) / 60);
+        let s = totalSeconds % 60;
+        let str = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+        document.getElementById('timer').innerText = str;
+        return str;
+    }
+
+    function render() {
+        document.getElementById('q-body').innerText = (currentIdx + 1) + ". " + questions[currentIdx];
+        document.getElementById('q-count').innerText = `Domanda ${currentIdx + 1}/567`;
+        
+        let p = Math.round(((currentIdx + 1) / 567) * 100);
+        document.getElementById('perc').innerText = p + "%";
+        document.getElementById('bar').style.width = p + "%";
+
+        document.getElementById('bv').className = "btn-ans btn-v" + (responses[currentIdx] === 'V' ? " active" : "");
+        document.getElementById('bf').className = "btn-ans btn-f" + (responses[currentIdx] === 'F' ? " active" : "");
+
+        const done = responses.filter(r => r !== null).length;
+        document.getElementById('rev-btn').style.display = (done > 5 && !isRecovering) ? "block" : "none";
+        document.getElementById('back-recover').style.display = (isRecovering) ? "block" : "none";
+
+        startTime = Date.now();
+        localStorage.setItem('mmpi_p8_res', JSON.stringify(responses));
+        localStorage.setItem('mmpi_p8_times', JSON.stringify(reactionTimes));
+    }
+
+    function handleAns(val) {
+        let elapsed = (Date.now() - startTime) / 1000;
+        reactionTimes[currentIdx] = Math.round(elapsed);
+        responses[currentIdx] = val;
+
+        if(isRecovering) {
+            missingQueue.shift();
+            if(missingQueue.length > 0) {
+                currentIdx = missingQueue[0];
+                render();
+            } else {
+                isRecovering = false;
+                openReview();
+            }
+        } else {
+            if(currentIdx < 566) { currentIdx++; render(); } 
+            else { openReview(); }
+        }
+    }
+
+    function changeQ(dir) {
+        if(currentIdx + dir >= 0 && currentIdx + dir < 567) {
+            currentIdx += dir;
+            render();
+        }
+    }
+
+    function jumpTo() {
+        let n = prompt("Vai al numero:");
+        if(n >= 1 && n <= 567) { currentIdx = parseInt(n)-1; render(); }
+    }
+
+    // --- REVISIONE E ANALISI ---
+    function openReview() {
+        isReviewing = true;
+        document.getElementById('test-screen').style.display = "none";
+        document.getElementById('review-screen').style.display = "block";
+        
+        let missing = [];
+        responses.forEach((r, i) => { if(r === null) missing.push(i); });
+        document.getElementById('missing-count').innerText = missing.length;
+        document.getElementById('missing-box').style.display = missing.length > 0 ? "block" : "none";
+
+        // VRIN
+        let cohErr = 0;
+        vrinPairs.forEach(p => {
+            if(responses[p[0]] && responses[p[1]]) {
+                if(p[2] && responses[p[0]] !== responses[p[1]]) cohErr++;
+            }
+        });
+        document.getElementById('st-coh').innerText = (100 - (cohErr * 15)) + "%";
+
+        // Lie
+        let lie = 0;
+        lieItems.forEach(i => { if(responses[i] === 'V') lie++; });
+        document.getElementById('st-lie').innerText = lie > 2 ? "SOSPETTO" : "OK";
+
+        // Tempi
+        document.getElementById('st-time').innerText = reactionTimes.filter(t => t > 7).length;
+
+        // Critiche
+        let crit = 0;
+        critItems.forEach(i => { if(responses[i] === 'V') crit++; });
+        document.getElementById('st-crit').innerText = crit;
+
+        // Grid
+        const grid = document.getElementById('grid');
+        grid.innerHTML = "";
+        responses.forEach((r, i) => {
+            let d = document.createElement('div');
+            d.className = "tile " + (r === 'V' ? 't-v' : r === 'F' ? 't-f' : 't-n');
+            if(critItems.includes(i) && r === 'V') d.classList.add('t-crit');
+            d.innerText = i+1;
+            d.onclick = () => { currentIdx = i; closeReview(); };
+            grid.appendChild(d);
+        });
+    }
+
+    function closeReview() {
+        isReviewing = false;
+        document.getElementById('test-screen').style.display = "block";
+        document.getElementById('review-screen').style.display = "none";
+        render();
+    }
+
+    function startRecover() {
+        missingQueue = [];
+        responses.forEach((r, i) => { if(r === null) missingQueue.push(i); });
+        if(missingQueue.length > 0) {
+            isRecovering = true;
+            currentIdx = missingQueue[0];
+            closeReview();
+        }
+    }
+
+    function downloadReport() {
+        let txt = "REPORT MMPI-2 ANALYZER\n";
+        txt += "Tempo Totale: " + updateTimerDisplay() + "\n";
+        txt += "Coerenza VRIN: " + document.getElementById('st-coh').innerText + "\n\n";
+        responses.forEach((r, i) => {
+            txt += `${i+1}. ${r || '??'} (Tempo: ${reactionTimes[i]}s)\n`;
+        });
+        const blob = new Blob([txt], {type: "text/plain"});
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "Report_MMPI2_Completo.txt";
+        a.click();
+    }
+
+// --- MOTORE DI SCORING PROFESSIONALE MMPI-2 ---
+
+// Configurazione scale: Indice domanda (0-566) e risposta attesa
+// ==========================================
+// ANALISI CLINICA INTEGRATA (NON TOCCARE)
+// ==========================================
+const scaleKeys = {
+    'L': { v: [], f: [16, 29, 41, 51, 77, 93, 102, 107, 123, 139, 153, 183, 203, 232, 260], kWeight: 0 },
+    'F': { v: [14, 22, 31, 38, 48, 56, 65, 85, 92, 106, 115, 120, 150, 156, 168, 179, 197, 206, 209, 215, 218, 227, 246, 252, 256, 269, 281, 291, 303, 311], f: [], kWeight: 0 },
+    'K': { v: [96], f: [30, 39, 58, 76, 110, 130, 157, 158, 167, 193, 213, 243, 244, 258, 259, 263, 267, 274, 286, 314, 315, 316, 338, 341, 348, 356, 365, 476, 543], kWeight: 0 },
+    'Hs': { v: [33, 59, 111, 117, 175, 181, 226], f: [2, 3, 7, 8, 10, 13, 17, 20, 45, 143, 152, 164, 173, 176, 179, 208, 224, 249, 255], kWeight: 0.5 },
+    'D': { v: [5, 15, 18, 22, 25, 37, 38, 41, 67, 117, 127, 143, 175, 181, 188, 189, 193, 209, 221, 226, 233, 248, 250, 252], f: [2, 8, 9, 10, 20, 29, 33, 35, 43, 45, 49, 51, 57, 58, 75, 76, 95, 104, 107, 109, 118, 135, 140, 141, 142, 147, 152, 153, 154, 155, 212, 242, 267], kWeight: 0 },
+    'Pd': { v: [17, 21, 22, 31, 32, 34, 35, 38, 71, 82, 91, 94, 99, 102, 105, 190, 209, 214, 215, 216, 227, 245, 248, 254], f: [8, 9, 12, 13, 20, 33, 79, 83, 92, 101, 112, 113, 157, 158, 160, 167, 171, 185, 202, 235, 239, 244, 247, 264, 266, 267, 284, 437, 438, 442, 443], kWeight: 0.4 }
+};
+
+function getProfessionalAnalysis() {
+    let rawScores = {};
+    for (let scale in scaleKeys) {
+        let score = 0;
+        scaleKeys[scale].v.forEach(idx => { if(responses[idx-1] === 'V') score++; });
+        scaleKeys[scale].f.forEach(idx => { if(responses[idx-1] === 'F') score++; });
+        rawScores[scale] = score;
+    }
+    let kValue = rawScores.K || 0;
+    let finalRaw = { ...rawScores };
+    for (let scale in scaleKeys) {
+        if (scaleKeys[scale].kWeight > 0) {
+            finalRaw[scale] = Math.round((rawScores[scale] + (kValue * scaleKeys[scale].kWeight)) * 10) / 10;
+        }
+    }
+    let htmlReport = `<div style="background:#fff; border:2px solid var(--p); padding:15px; border-radius:12px; margin-top:20px; color:#333;">
+        <h3 style="color:var(--p); margin-top:0;">📊 Report Clinico MMPI-2</h3>
+        <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+            <thead><tr style="background:#f0f0f0;"><th style="padding:8px; border:1px solid #ccc;">Scala</th><th style="padding:8px; border:1px solid #ccc;">Grezzo</th><th style="padding:8px; border:1px solid #ccc;">K-Corr</th><th style="padding:8px; border:1px solid #ccc;">Stato</th></tr></thead>
+            <tbody>`;
+    for (let scale in finalRaw) {
+        let status = finalRaw[scale] > 20 ? `<span style="color:var(--f); font-weight:bold;">⚠️ Elevato</span>` : `<span style="color:var(--v);">✅ Normale</span>`;
+        htmlReport += `<tr><td style="padding:8px; border:1px solid #ccc; font-weight:bold;">${scale}</td><td style="padding:8px; border:1px solid #ccc; text-align:center;">${rawScores[scale]}</td><td style="padding:8px; border:1px solid #ccc; text-align:center;">${finalRaw[scale]}</td><td style="padding:8px; border:1px solid #ccc; text-align:center;">${status}</td></tr>`;
+    }
+    htmlReport += `</tbody></table></div>`;
+    return htmlReport;
+}
+
+const originalOpenReview = openReview;
+openReview = function() {
+    originalOpenReview();
+    let old = document.getElementById('prof-analysis');
+    if(old) old.remove();
+    const div = document.createElement('div');
+    div.id = 'prof-analysis';
+    div.innerHTML = getProfessionalAnalysis() + getScalesLegenda();
+    document.getElementById('review-screen').appendChild(div);
+};
+// ==========================================
+// FINE ANALISI CLINICA
+// ==========================================
+
+// --- LEGENDA DELLE SCALE ---
+function getScalesLegenda() {
+    return `
+        <div style="margin-top: 20px; padding: 15px; background: #fdfdfd; border: 1px solid #eee; border-radius: 12px; font-size: 0.85rem; color: #444;">
+            <h4 style="margin-top:0; color:var(--p);">📘 Legenda delle Scale</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                    <b style="color:var(--p);">VALIDITÀ:</b><br>
+                    • <b>L (Lie):</b> Tendenza a mostrare un'immagine di sé idealizzata.<br>
+                    • <b>F (Frequency):</b> Risposte insolite o disagio psicologico acuto.<br>
+                    • <b>K (Correction):</b> Difensività o capacità di controllo emotivo.
+                </div>
+                <div>
+                    <b style="color:var(--p);">CLINICHE:</b><br>
+                    • <b>Hs (Ipocondria):</b> Preoccupazioni eccessive per la salute fisica.<br>
+                    • <b>D (Depressione):</b> Stato di scoraggiamento e bassa autostima.<br>
+                    • <b>Pd (Deviazione Psicopatica):</b> Insofferenza verso le regole e autorità.
+                </div>
+            </div>
+        </div>
+    `;
+}   
+
+
+ // --- TASTI PC ---
+    document.addEventListener('keydown', (e) => {
+        if(!isReviewing) {
+            if (e.key.toLowerCase() === 'v') handleAns('V');
+            if (e.key.toLowerCase() === 'f') handleAns('F');
+            if (e.key === 'ArrowRight') changeQ(1);
+            if (e.key === 'ArrowLeft') changeQ(-1);
+        }
+    });
+
+    render();
+</script>
+</body>
+</html>
