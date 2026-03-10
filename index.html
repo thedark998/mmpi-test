@@ -60,6 +60,8 @@
     <div class="header-info">
         <span id="q-count">Domanda 1/567</span>
         <span class="timer-box" id="timer">00:00:00</span>
+        <button id="pause-btn" onclick="togglePause()" style="margin-left:10px; padding:2px 10px; border-radius:5px; border:none; backgroung:#ffc107; font-weight:bold; cursor:pointer; font-size:0.8rem;">PAUSA</button>
+        
         <span id="perc">0%</span>
     </div>
     
@@ -401,37 +403,60 @@
     let responses = JSON.parse(localStorage.getItem('mmpi_p8_res')) || new Array(567).fill(null);
     let reactionTimes = JSON.parse(localStorage.getItem('mmpi_p8_times')) || new Array(567).fill(0);
     let totalSeconds = parseInt(localStorage.getItem('mmpi_p8_sec')) || 0;
-   
+  
     let currentIdx = 0;
-    // Recuperiamo il tempo salvato se esiste, altrimenti 0
+    // 1. Recupera il tempo o parte da zero
     let totalSeconds = parseInt(localStorage.getItem('mmpi_p8_sec')) || 0; 
-    // Manteniamo startTime per non rompere la tua analisi originale
+    // 2. Sistema startTime per l'analisi clinica
     let startTime = Date.now() - (totalSeconds * 1000); 
+    
     let isReviewing = false;
     let isRecovering = false;
+    let isPaused = false; // AGGIUNTO: Evita che il programma si blocchi
     let missingQueue = [];
+    
+    // Recupera risposte salvate
+    let responses = JSON.parse(localStorage.getItem('mmpi_p8_res')) || new Array(567).fill(null);
 
-   // Timer Globale - Sostituisci il vecchio con questo
+  // --- GESTIONE TEMPO E PAUSA ---
+    function updateTimerDisplay() {
+        const hrs = Math.floor(totalSeconds / 3600);
+        const mins = Math.floor((totalSeconds % 3600) / 60);
+        const secs = totalSeconds % 60;
+        const display = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        const timerEl = document.querySelector('.timer-box');
+        if (timerEl) timerEl.innerText = display;
+    }
+
     setInterval(() => {
-        if(!isReviewing) {
+        if(!isReviewing && !isPaused) {
             totalSeconds++;
-            
-            // Salva nel browser
             localStorage.setItem('mmpi_p8_sec', totalSeconds);
-            
-            // Calcola HH:MM:SS
-            const hrs = Math.floor(totalSeconds / 3600);
-            const mins = Math.floor((totalSeconds % 3600) / 60);
-            const secs = totalSeconds % 60;
-            const display = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-            
-            // Aggiorna la grafica
-            const timerEl = document.querySelector('.timer-box');
-            if (timerEl) {
-                timerEl.innerText = display;
-            }
+            updateTimerDisplay();
         }
     }, 1000);
+
+    // FUNZIONE PER IL TASTO PAUSA
+    function togglePause() {
+        isPaused = !isPaused;
+        const btn = document.getElementById('pause-btn');
+        const qText = document.getElementById('q-text');
+        const btnCont = document.querySelector('.btn-container');
+
+        if (isPaused) {
+            btn.innerText = "RIPRENDI";
+            btn.style.background = "#28a745";
+            qText.innerText = "--- TEST IN PAUSA ---";
+            btnCont.style.opacity = "0.1";
+            btnCont.style.pointerEvents = "none";
+        } else {
+            btn.innerText = "PAUSA";
+            btn.style.background = "#ffc107";
+            btnCont.style.opacity = "1";
+            btnCont.style.pointerEvents = "all";
+            render(); // Ricarica la domanda corretta
+        }
+    }
     
     function updateTimerDisplay() {
         let h = Math.floor(totalSeconds / 3600);
@@ -717,5 +742,6 @@ function getScalesLegenda() {
 </script>
 </body>
 </html>
+
 
 
