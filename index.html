@@ -401,22 +401,38 @@
     let responses = JSON.parse(localStorage.getItem('mmpi_p8_res')) || new Array(567).fill(null);
     let reactionTimes = JSON.parse(localStorage.getItem('mmpi_p8_times')) || new Array(567).fill(0);
     let totalSeconds = parseInt(localStorage.getItem('mmpi_p8_sec')) || 0;
-    
+   
     let currentIdx = 0;
-    let startTime = Date.now();
+    // Recuperiamo il tempo salvato se esiste, altrimenti 0
+    let totalSeconds = parseInt(localStorage.getItem('mmpi_p8_sec')) || 0; 
+    // Manteniamo startTime per non rompere la tua analisi originale
+    let startTime = Date.now() - (totalSeconds * 1000); 
     let isReviewing = false;
     let isRecovering = false;
     let missingQueue = [];
 
-    // Timer Globale
+   // Timer Globale - Sostituisci il vecchio con questo
     setInterval(() => {
         if(!isReviewing) {
             totalSeconds++;
-            updateTimerDisplay();
+            
+            // Salva nel browser
             localStorage.setItem('mmpi_p8_sec', totalSeconds);
+            
+            // Calcola HH:MM:SS
+            const hrs = Math.floor(totalSeconds / 3600);
+            const mins = Math.floor((totalSeconds % 3600) / 60);
+            const secs = totalSeconds % 60;
+            const display = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            
+            // Aggiorna la grafica
+            const timerEl = document.querySelector('.timer-box');
+            if (timerEl) {
+                timerEl.innerText = display;
+            }
         }
     }, 1000);
-
+    
     function updateTimerDisplay() {
         let h = Math.floor(totalSeconds / 3600);
         let m = Math.floor((totalSeconds % 3600) / 60);
@@ -426,6 +442,16 @@
         return str;
     }
 
+    // Controllo al caricamento
+    const savedRes = localStorage.getItem('mmpi_p8_res');
+    if (savedRes) {
+        const count = JSON.parse(savedRes).filter(r => r !== null).length;
+        if (count > 0 && !confirm("Hai un test in corso. Vuoi riprenderlo?\n[OK] Continua\n[Annulla] Ricomincia da capo")) {
+            localStorage.clear();
+            location.reload();
+        }
+    }
+    
     function render() {
         document.getElementById('q-body').innerText = (currentIdx + 1) + ". " + questions[currentIdx];
         document.getElementById('q-count').innerText = `Domanda ${currentIdx + 1}/567`;
@@ -691,4 +717,5 @@ function getScalesLegenda() {
 </script>
 </body>
 </html>
+
 
