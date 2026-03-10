@@ -403,19 +403,20 @@
     let responses = JSON.parse(localStorage.getItem('mmpi_p8_res')) || new Array(567).fill(null);
     let reactionTimes = JSON.parse(localStorage.getItem('mmpi_p8_times')) || new Array(567).fill(0);
     let totalSeconds = parseInt(localStorage.getItem('mmpi_p8_sec')) || 0;
-  
+ 
+    // --- VARIABILI DI STATO ---
     let currentIdx = 0;
-    // 1. Recupera il tempo o parte da zero
+    // Recupera i secondi salvati, se non ci sono parte da 0
     let totalSeconds = parseInt(localStorage.getItem('mmpi_p8_sec')) || 0; 
-    // 2. Sistema startTime per l'analisi clinica
+    // Mantiene la compatibilità con l'analisi originale
     let startTime = Date.now() - (totalSeconds * 1000); 
     
     let isReviewing = false;
     let isRecovering = false;
-    let isPaused = false; // AGGIUNTO: Evita che il programma si blocchi
+    let isPaused = false; // Questa serve per il tasto Pausa
     let missingQueue = [];
     
-    // Recupera risposte salvate
+    // Carica le risposte salvate o crea un array vuoto
     let responses = JSON.parse(localStorage.getItem('mmpi_p8_res')) || new Array(567).fill(null);
 
   // --- GESTIONE TEMPO E PAUSA ---
@@ -424,7 +425,7 @@
         const mins = Math.floor((totalSeconds % 3600) / 60);
         const secs = totalSeconds % 60;
         const display = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-        const timerEl = document.querySelector('.timer-box');
+        const timerEl = document.getElementById('timer');
         if (timerEl) timerEl.innerText = display;
     }
 
@@ -436,35 +437,25 @@
         }
     }, 1000);
 
-    // FUNZIONE PER IL TASTO PAUSA
     function togglePause() {
         isPaused = !isPaused;
         const btn = document.getElementById('pause-btn');
-        const qText = document.getElementById('q-text');
-        const btnCont = document.querySelector('.btn-container');
+        const qText = document.getElementById('q-body'); // Corretto l'ID in q-body
+        const btns = document.querySelectorAll('.btn-ans');
 
         if (isPaused) {
             btn.innerText = "RIPRENDI";
             btn.style.background = "#28a745";
             qText.innerText = "--- TEST IN PAUSA ---";
-            btnCont.style.opacity = "0.1";
-            btnCont.style.pointerEvents = "none";
+            btns.forEach(b => b.style.pointerEvents = "none");
+            document.querySelector('.btns').style.opacity = "0.2";
         } else {
             btn.innerText = "PAUSA";
             btn.style.background = "#ffc107";
-            btnCont.style.opacity = "1";
-            btnCont.style.pointerEvents = "all";
-            render(); // Ricarica la domanda corretta
+            document.querySelector('.btns').style.opacity = "1";
+            btns.forEach(b => b.style.pointerEvents = "all");
+            render(); // Fa riapparire la domanda
         }
-    }
-    
-    function updateTimerDisplay() {
-        let h = Math.floor(totalSeconds / 3600);
-        let m = Math.floor((totalSeconds % 3600) / 60);
-        let s = totalSeconds % 60;
-        let str = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-        document.getElementById('timer').innerText = str;
-        return str;
     }
 
     // Controllo al caricamento
@@ -742,6 +733,7 @@ function getScalesLegenda() {
 </script>
 </body>
 </html>
+
 
 
 
