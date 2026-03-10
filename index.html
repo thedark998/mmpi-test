@@ -485,9 +485,50 @@
         document.getElementById('review-screen').style.display = "block";
         
         let missing = [];
-        responses.forEach((r, i) => { if(r === null) missing.push(i); });
-        document.getElementById('missing-count').innerText = missing.length;
-        document.getElementById('missing-box').style.display = missing.length > 0 ? "block" : "none";
+responses.forEach((r, i) => { 
+    if(r === null) missing.push(i); 
+});
+
+document.getElementById('missing-count').innerText = missing.length;
+document.getElementById('missing-box').style.display = missing.length > 0 ? "block" : "none";
+
+let missingList = document.getElementById("missing-list");
+
+if(!missingList){
+    missingList = document.createElement("div");
+    missingList.id = "missing-list";
+    missingList.style.marginTop = "10px";
+    missingList.style.display = "flex";
+    missingList.style.flexWrap = "wrap";
+    missingList.style.gap = "5px";
+
+    document.getElementById("missing-box").appendChild(missingList);
+}
+
+missingList.innerHTML = "";
+
+missing.forEach(i => {
+
+    const btn = document.createElement("button");
+
+    btn.innerText = i + 1;
+
+    btn.style.padding = "6px 10px";
+    btn.style.border = "none";
+    btn.style.borderRadius = "6px";
+    btn.style.background = "#dc3545";
+    btn.style.color = "white";
+    btn.style.fontWeight = "bold";
+    btn.style.cursor = "pointer";
+
+    btn.onclick = () => {
+        currentIdx = i;
+        closeReview();
+    };
+
+    missingList.appendChild(btn);
+
+});
 
         // VRIN
         let cohErr = 0;
@@ -650,3 +691,4 @@ function getScalesLegenda() {
 </script>
 </body>
 </html>
+
