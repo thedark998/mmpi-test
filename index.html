@@ -60,6 +60,8 @@
     <div class="header-info">
         <span id="q-count">Domanda 1/567</span>
         <span class="timer-box" id="timer">00:00:00</span>
+        <button id="pause-btn" onclick="togglePause()" style="margin-left:10px; padding:2px 10px; border-radius:5px; border:none; backgroung:#ffc107; font-weight:bold; cursor:pointer; font-size:0.8rem;">PAUSA</button>
+        
         <span id="perc">0%</span>
     </div>
     
@@ -398,35 +400,73 @@
     const lieItems = [40, 50, 120, 250]; 
     const critItems = [23, 31, 59, 115, 220]; 
 
-    let responses = JSON.parse(localStorage.getItem('mmpi_p8_res')) || new Array(567).fill(null);
-    let reactionTimes = JSON.parse(localStorage.getItem('mmpi_p8_times')) || new Array(567).fill(0);
-    let totalSeconds = parseInt(localStorage.getItem('mmpi_p8_sec')) || 0;
-    
+   
+    // --- VARIABILI DI STATO ---
     let currentIdx = 0;
-    let startTime = Date.now();
     let isReviewing = false;
     let isRecovering = false;
-    let totalSeconds = parseInt(localStorage.getItem('mmpi_timer_elapsed')) || 0; let isPaused = false; 
-let timerInterval;
+    let isPaused = false; 
+    let missingQueue = [];
 
-    // Timer Globale
+    // Recupero dati - DICHIARATI UNA SOLA VOLTA
+    let totalSeconds = parseInt(localStorage.getItem('mmpi_p8_sec')) || 0;
+let startTime = Date.now() - (totalSeconds * 1000);
+let responses = JSON.parse(localStorage.getItem('mmpi_p8_res')) || new Array(567).fill(null);
+let reactionTimes = JSON.parse(localStorage.getItem('mmpi_p8_times')) || new Array(567).fill(0);
+
+    // --- GESTIONE TEMPO E PAUSA ---
+    function updateTimerDisplay() {
+        const h = Math.floor(totalSeconds / 3600);
+        const m = Math.floor((totalSeconds % 3600) / 60);
+        const s = totalSeconds % 60;
+        const str = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+        const timerEl = document.getElementById('timer');
+        if (timerEl) timerEl.innerText = str;
+    }
+
     setInterval(() => {
-        if(!isReviewing) {
+        if(!isReviewing && !isPaused) {
             totalSeconds++;
-            updateTimerDisplay();
             localStorage.setItem('mmpi_p8_sec', totalSeconds);
+            updateTimerDisplay();
         }
     }, 1000);
 
-    function updateTimerDisplay() {
-        let h = Math.floor(totalSeconds / 3600);
-        let m = Math.floor((totalSeconds % 3600) / 60);
-        let s = totalSeconds % 60;
-        let str = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-        document.getElementById('timer').innerText = str;
-        return str;
-    }
+    function togglePause() {
+        isPaused = !isPaused;
+        const btn = document.getElementById('pause-btn');
+        const qBody = document.getElementById('q-body');
+        const btnsArea = document.querySelector('.btns');
 
+        if (isPaused) {
+            btn.innerText = "RIPRENDI";
+            btn.style.background = "#28a745";
+            if (qBody) qBody.innerText = "--- TEST IN PAUSA ---";
+            if (btnsArea) {
+                btnsArea.style.opacity = "0.1";
+                btnsArea.style.pointerEvents = "none";
+            }
+        } else {
+            btn.innerText = "PAUSA";
+            btn.style.background = "#ffc107";
+            if (btnsArea) {
+                btnsArea.style.opacity = "1";
+                btnsArea.style.pointerEvents = "all";
+            }
+            render(); 
+        }
+    }
+    
+    // Controllo al caricamento
+    const savedRes = localStorage.getItem('mmpi_p8_res');
+    if (savedRes) {
+        const count = JSON.parse(savedRes).filter(r => r !== null).length;
+        if (count > 0 && !confirm("Hai un test in corso. Vuoi riprenderlo?\n[OK] Continua\n[Annulla] Ricomincia da capo")) {
+            localStorage.clear();
+            location.reload();
+        }
+    }
+    
     function render() {
         document.getElementById('q-body').innerText = (currentIdx + 1) + ". " + questions[currentIdx];
         document.getElementById('q-count').innerText = `Domanda ${currentIdx + 1}/567`;
@@ -692,3 +732,4 @@ function getScalesLegenda() {
 </script>
 </body>
 </html>
+
